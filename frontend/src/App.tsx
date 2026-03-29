@@ -7,6 +7,7 @@ import { twMerge } from 'tailwind-merge';
 const cn = (...classes: ClassValue[]) => twMerge(clsx(classes));
 
 type FormData = {
+  date: string;
   weather: string;
   overallScore: number;
   workScore: number;
@@ -25,6 +26,14 @@ type FormData = {
   diary: string;
 };
 
+const getTodayString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function App() {
   const [sleepImageBase64, setSleepImageBase64] = useState<string | null>(null);
   const [sleepFileName, setSleepFileName] = useState<string>('');
@@ -33,6 +42,7 @@ export default function App() {
 
   const { register, handleSubmit, watch, control } = useForm<FormData>({
     defaultValues: {
+      date: getTodayString(),
       overallScore: 70,
       workScore: 70,
       commuteType: 'commuted',
@@ -68,7 +78,7 @@ export default function App() {
     setIsSubmitting(true);
     try {
       const payload = {
-        date: new Date().toLocaleString("ja-JP", {timeZone: "Asia/Tokyo"}),
+        date: data.date,
         weather: data.weather,
         overallScore: data.overallScore,
         workScore: data.workScore,
@@ -134,7 +144,14 @@ export default function App() {
     <div className="max-w-md mx-auto p-4 pb-24 space-y-8 animate-in fade-in duration-500">
       <header className="mb-2">
         <h1 className="text-3xl font-black tracking-tight bg-gradient-to-br from-indigo-400 to-purple-400 bg-clip-text text-transparent">Daily Sync</h1>
-        <p className="text-slate-400 text-sm mt-1">{new Date().toLocaleDateString('ja-JP')} の記録</p>
+        <div className="mt-2 flex items-center gap-2">
+          <input 
+            type="date" 
+            {...register('date')}
+            className="bg-transparent text-slate-300 text-sm font-medium border-b border-slate-700 focus:border-indigo-500 outline-none pb-1"
+          />
+          <span className="text-slate-400 text-sm">の記録</span>
+        </div>
       </header>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

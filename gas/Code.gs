@@ -101,3 +101,97 @@ function analyzeSleepImage(base64Image) {
   }
   return "解析失敗";
 }
+
+// ==========================================
+// LINE 通知設定
+// ==========================================
+const LINE_CHANNEL_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN") || "VUDycswLstAqUqbIS+8qg9qpNy/39BUHJg+pfLkBEPbSKFDajwyXBr1CwF6P/8ZbbmBQRy/U75lScVUYkWLbxiSmDkHCIO9hDm/4k0zUHx3ZOFlFCXu6CWKYikWIQ79REddhhs6Z9eHlWsbv2NIkogdB04t89/1O/w1cDnyilFU=";
+const LINE_USER_ID = "U0d5f1146d87c4b557f1867a63bac0114";
+// Vercelで発行されるURLをここに入れます
+const APP_URL = "https://kafuku-app.vercel.app"; // 仮のURLを設定（あとで変更可能）
+
+/**
+ * LINEにリマインダーを送信する関数
+ */
+function sendLineReminder() {
+  const url = "https://api.line.me/v2/bot/message/push";
+  
+  const payload = {
+    "to": LINE_USER_ID,
+    "messages": [
+      {
+        "type": "text",
+        "text": "📅 今日のジンクス記録の時間です！\n今日の体感スコアや睡眠データ（スクショ）を入力しましょう👇\n" + APP_URL
+      }
+    ]
+  };
+
+  const options = {
+    "method": "post",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + LINE_CHANNEL_ACCESS_TOKEN
+    },
+    "payload": JSON.stringify(payload)
+  };
+
+  try {
+    UrlFetchApp.fetch(url, options);
+    Logger.log("リマインダーを送信しました");
+  } catch (e) {
+    Logger.log("LINE送信エラー: " + e.message);
+  }
+}
+
+/**
+ * 毎日22:30にリマインダーを送信する仕組みをセットアップする関数
+ * （GASエディタから手動で1回だけ実行します）
+ */
+function setupDailyTriggers() {
+  // 既存のすべてのトリガーを削除
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    ScriptApp.deleteTrigger(trigger);
+  });
+  
+  // 毎日深夜（1時〜2時の間）に、その日の22:30のトリガーを仕掛けるトリガーを作成
+  ScriptApp.newTrigger("scheduleTodayReminder")
+    .timeBased()
+    .atHour(1)
+    .everyDays(1)
+    .create();
+    
+  // 今日分の22:30トリガーをすぐに設定
+  scheduleTodayReminder();
+  
+  Logger.log("毎日のトリガー準備を設定完了しました。毎日22:30にLINE通知が届くようになります。");
+}
+
+/**
+ * 毎日深夜に実行され、その日の22:30にLINE通知を実行するトリガーを作成します
+ */
+function scheduleTodayReminder() {
+  // すでにある "sendLineReminder" の一時トリガー（昨日の残りなど）を整理のため削除
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    if (trigger.getHandlerFunction() === "sendLineReminder") {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+
+  const date = new Date();
+  date.setHours(22);
+  date.setMinutes(30);
+  date.setSeconds(0);
+  
+  // 現在時刻よりも後であればトリガーをセット（過去にならないよう防止）
+  if (date.getTime() > new Date().getTime()) {
+    ScriptApp.newTrigger("sendLineReminder")
+      .timeBased()
+      .at(date)
+      .create();
+    Logger.log("今日の " + date.toString() + " に通知をセットしました");
+  } else {
+    Logger.log("既に22:30を過ぎているため、本日の通知トリガーはセットしません");
+  }
+}
