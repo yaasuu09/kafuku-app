@@ -24,6 +24,7 @@ type FormData = {
   inboundDelayOther: string;
   unpleasantEvents: string;
   diary: string;
+  updateSleepOnly: boolean;
 };
 
 const getTodayString = () => {
@@ -43,6 +44,7 @@ export default function App() {
   const { register, handleSubmit, watch, control } = useForm<FormData>({
     defaultValues: {
       date: getTodayString(),
+      updateSleepOnly: false,
       overallScore: 70,
       workScore: 70,
       commuteType: 'commuted',
@@ -61,6 +63,7 @@ export default function App() {
   const watchInboundDelay = watch('inboundDelay');
   const watchOutboundMins = watch('outboundDelayMins');
   const watchInboundMins = watch('inboundDelayMins');
+  const watchUpdateSleepOnly = watch('updateSleepOnly');
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -91,6 +94,7 @@ export default function App() {
         inboundDelay: data.inboundDelay === 'yes' ? (data.inboundDelayMins === 'その他' ? (data.inboundDelayOther || 'その他') : `${data.inboundDelayMins}分`) : 'なし',
         unpleasantEvents: data.unpleasantEvents,
         diary: data.diary,
+        updateSleepOnly: data.updateSleepOnly,
         sleepImage: sleepImageBase64
       };
 
@@ -155,12 +159,26 @@ export default function App() {
       </header>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        
-        {/* Weather */}
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-            <Sun className="w-4 h-4 text-amber-400"/> 今日の天気
-          </h2>
+
+        {/* Update Sleep Only Mode Toggle */}
+        <div className="bg-slate-900/40 border border-indigo-500/30 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-indigo-300">過去の睡眠データだけ登録する</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">※他の項目を上書きせず、同じ日付の行にスクショ解析だけを追加します</p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" {...register('updateSleepOnly')} className="sr-only peer" />
+            <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+          </label>
+        </div>
+
+        {!watchUpdateSleepOnly && (
+          <>
+            {/* Weather */}
+            <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+                <Sun className="w-4 h-4 text-amber-400"/> 今日の天気
+              </h2>
           <div className="grid grid-cols-4 gap-2">
             {[
               { icon: Sun, label: '晴れ', color: 'text-amber-400' },
@@ -390,6 +408,8 @@ export default function App() {
             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none resize-none h-32 placeholder:text-slate-600 font-medium leading-relaxed"
           ></textarea>
         </div>
+          </>
+        )}
 
         {/* Sleep Data */}
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all">

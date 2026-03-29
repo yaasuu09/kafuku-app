@@ -2,11 +2,6 @@ function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     
-    let sleepDataStr = "";
-    if (data.sleepImage) {
-      sleepDataStr = analyzeSleepImage(data.sleepImage);
-    }
-    
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     // デフォルトのシート（一番左）または "Data" というシートを使用
     const sheet = ss.getSheetByName("Data") || ss.getSheets()[0];
@@ -19,6 +14,51 @@ function doPost(e) {
         "帰りの座席", "帰りの駅", "帰り遅延", 
         "不快なこと", "日記", "睡眠データ"
       ]);
+    }
+
+    const isSleepOnly = data.updateSleepOnly === true;
+    const targetDateStr = String(data.date || new Date().toLocaleString("ja-JP", {timeZone: "Asia/Tokyo"})).split(' ')[0].replace(/\//g, '-');
+    
+    // シート上の既存データを検索
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    let rowIndex = -1;
+    for (let i = 1; i < values.length; i++) {
+      let sheetDateStr = values[i][0];
+      if (sheetDateStr instanceof Date) {
+        const y = sheetDateStr.getFullYear();
+        const m = String(sheetDateStr.getMonth() + 1).padStart(2, '0');
+        const d = String(sheetDateStr.getDate()).padStart(2, '0');
+        sheetDateStr = `${y}-${m}-${d}`;
+      } else {
+        sheetDateStr = String(sheetDateStr).split(' ')[0].replace(/\//g, '-');
+      }
+      
+      if (sheetDateStr === targetDateStr) {
+         rowIndex = i + 1; // getRange() は1始まり
+         break;
+      }
+    }
+
+    if (isSleepOnly) {
+      if (rowIndex === -1) {
+        throw new Error("指定した日付（" + targetDateStr + "）のデータが見つかりません。先に通常の日記を入力してください。");
+      }
+      if (!data.sleepImage) {
+        throw new Error("睡眠データの画像（スクショ）が選択されていません。");
+      }
+      
+      const sleepDataStr = analyzeSleepImage(data.sleepImage);
+      // N列目 (列番号14) が「睡眠データ」
+      sheet.getRange(rowIndex, 14).setValue(sleepDataStr);
+      
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "既存データに睡眠データを追加しました！" })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 通常の全項目追加モード
+    let sleepDataStr = "";
+    if (data.sleepImage) {
+      sleepDataStr = analyzeSleepImage(data.sleepImage);
     }
 
     // フォームから送られてきたデータを整形して配列にする
@@ -41,7 +81,7 @@ function doPost(e) {
     
     sheet.appendRow(row);
     
-    // 成功レスポンスを返す（React側にCORSとして解釈されないようJSONで返す）
+    // 成功レスポンスを返す
     return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Data saved successfully." })).setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
