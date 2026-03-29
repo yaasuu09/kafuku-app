@@ -105,7 +105,7 @@ function analyzeSleepImage(base64Image) {
 // ==========================================
 // LINE 通知設定
 // ==========================================
-const LINE_CHANNEL_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN") || "VUDycswLstAqUqbIS+8qg9qpNy/39BUHJg+pfLkBEPbSKFDajwyXBr1CwF6P/8ZbbmBQRy/U75lScVUYkWLbxiSmDkHCIO9hDm/4k0zUHx3ZOFlFCXu6CWKYikWIQ79REddhhs6Z9eHlWsbv2NIkogdB04t89/1O/w1cDnyilFU=";
+const LINE_CHANNEL_ACCESS_TOKEN = PropertiesService.getScriptProperties().getProperty("LINE_CHANNEL_ACCESS_TOKEN") || "BMOb/yCYgM8HHMxlKxbVSjzBR1hFtG9M80G/tjojWALTEh2k15HYF2r9/zTVMlxJGjNqdeKrNMG+qeDXv/EJzgD6obGX+BG18irEC1aXehGbeJUQTAi6FGYkVQIqRazGh1/Mf+qYIgrs6SaKEQUADB04t89/1O/w1cDnyilFU=";
 const LINE_USER_ID = "U0d5f1146d87c4b557f1867a63bac0114";
 // Vercelで発行されるURLをここに入れます
 const APP_URL = "https://kafuku-app.vercel.app"; // 仮のURLを設定（あとで変更可能）
