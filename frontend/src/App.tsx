@@ -427,7 +427,7 @@ export default function App() {
           </label>
           {sleepImageBase64 && (
             <div className="mt-4 relative rounded-xl overflow-hidden border border-slate-700 shadow-lg animate-in fade-in duration-300">
-              <img src={sleepImageBase64} alt="Sleep Preview" className="w-full h-40 object-cover opacity-90" />
+              <img src={sleepImageBase64} alt="Sleep Preview" className="w-full max-h-64 object-contain bg-slate-900 opacity-90 p-2" />
             </div>
           )}
         </div>
