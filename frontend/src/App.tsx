@@ -8,7 +8,10 @@ const cn = (...classes: ClassValue[]) => twMerge(clsx(classes));
 
 type FormData = {
   date: string;
-  weather: string;
+  outboundWeather: string;
+  outboundRainLevel: string;
+  inboundWeather: string;
+  inboundRainLevel: string;
   overallScore: number;
   workScore: number;
   commuteType: 'commuted' | 'wentOut' | 'none';
@@ -24,7 +27,6 @@ type FormData = {
   inboundDelayOther: string;
   unpleasantEvents: string;
   diary: string;
-  updateSleepOnly: boolean;
 };
 
 const getTodayString = () => {
@@ -44,7 +46,6 @@ export default function App() {
   const { register, handleSubmit, watch, control } = useForm<FormData>({
     defaultValues: {
       date: getTodayString(),
-      updateSleepOnly: false,
       overallScore: 70,
       workScore: 70,
       commuteType: 'commuted',
@@ -52,7 +53,10 @@ export default function App() {
       outboundDelayMins: '5',
       inboundDelay: 'no',
       inboundDelayMins: '5',
-      weather: '晴れ'
+      outboundWeather: '晴れ',
+      outboundRainLevel: '0',
+      inboundWeather: '晴れ',
+      inboundRainLevel: '0'
     }
   });
 
@@ -63,7 +67,8 @@ export default function App() {
   const watchInboundDelay = watch('inboundDelay');
   const watchOutboundMins = watch('outboundDelayMins');
   const watchInboundMins = watch('inboundDelayMins');
-  const watchUpdateSleepOnly = watch('updateSleepOnly');
+  const watchOutboundWeather = watch('outboundWeather');
+  const watchInboundWeather = watch('inboundWeather');
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,9 +85,12 @@ export default function App() {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
+      const getFormattedWeather = (w: string, r: string) => w === '雨' ? `雨(Lv${r})` : w;
+      const weatherStr = `行き: ${getFormattedWeather(data.outboundWeather, data.outboundRainLevel)} / 帰り: ${getFormattedWeather(data.inboundWeather, data.inboundRainLevel)}`;
+
       const payload = {
         date: data.date,
-        weather: data.weather,
+        weather: weatherStr,
         overallScore: data.overallScore,
         workScore: data.workScore,
         commuteType: data.commuteType === 'commuted' ? '通勤あり' : data.commuteType === 'wentOut' ? '外出あり' : '外出なし',
@@ -94,7 +102,6 @@ export default function App() {
         inboundDelay: data.inboundDelay === 'yes' ? (data.inboundDelayMins === 'その他' ? (data.inboundDelayOther || 'その他') : `${data.inboundDelayMins}分`) : 'なし',
         unpleasantEvents: data.unpleasantEvents,
         diary: data.diary,
-        updateSleepOnly: data.updateSleepOnly,
         sleepImage: sleepImageBase64
       };
 
@@ -160,41 +167,83 @@ export default function App() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-        {/* Update Sleep Only Mode Toggle */}
-        <div className="bg-slate-900/40 border border-indigo-500/30 rounded-xl p-4 flex items-center justify-between">
+        {/* Weather */}
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+          
           <div>
-            <h3 className="text-sm font-bold text-indigo-300">過去の睡眠データだけ登録する</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">※他の項目を上書きせず、同じ日付の行にスクショ解析だけを追加します</p>
-          </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" {...register('updateSleepOnly')} className="sr-only peer" />
-            <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-          </label>
-        </div>
-
-        {!watchUpdateSleepOnly && (
-          <>
-            {/* Weather */}
-            <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-                <Sun className="w-4 h-4 text-amber-400"/> 今日の天気
-              </h2>
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { icon: Sun, label: '晴れ', color: 'text-amber-400' },
-              { icon: Cloud, label: 'くもり', color: 'text-slate-300' },
-              { icon: CloudRain, label: '雨', color: 'text-blue-400' },
-              { icon: Snowflake, label: '雪/大雨', color: 'text-indigo-200' },
-            ].map((w) => (
-              <label key={w.label} className="cursor-pointer group">
-                <input type="radio" value={w.label} {...register('weather')} className="peer sr-only" />
-                <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-800/50 peer-checked:bg-indigo-500/20 peer-checked:border-indigo-500 transition-all active:scale-95 group-hover:bg-slate-800">
-                  <w.icon className={cn("w-6 h-6 mb-1", w.color)} />
-                  <span className="text-[10px] text-slate-300 font-medium">{w.label}</span>
+            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <Sun className="w-4 h-4 text-amber-400"/> 行きの天気
+            </h2>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { icon: Sun, label: '晴れ', color: 'text-amber-400' },
+                { icon: Cloud, label: 'くもり', color: 'text-slate-300' },
+                { icon: CloudRain, label: '雨', color: 'text-blue-400' },
+                { icon: Snowflake, label: '雪/大雨', color: 'text-indigo-200' },
+              ].map((w) => (
+                <label key={w.label} className="cursor-pointer group">
+                  <input type="radio" value={w.label} {...register('outboundWeather')} className="peer sr-only" />
+                  <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-800/50 peer-checked:bg-indigo-500/20 peer-checked:border-indigo-500 transition-all active:scale-95 group-hover:bg-slate-800">
+                    <w.icon className={cn("w-6 h-6 mb-1", w.color)} />
+                    <span className="text-[10px] text-slate-300 font-medium">{w.label}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {watchOutboundWeather === '雨' && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ (0:小雨 〜 5:土砂降り)</label>
+                <div className="flex gap-1">
+                  {['0', '1', '2', '3', '4', '5'].map((level) => (
+                    <label key={level} className="flex-1">
+                      <input type="radio" value={level} {...register('outboundRainLevel')} className="peer sr-only"/>
+                      <div className="text-center font-bold text-sm py-1.5 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
+                        {level}
+                      </div>
+                    </label>
+                  ))}
                 </div>
-              </label>
-            ))}
+              </div>
+            )}
           </div>
+
+          <div className="pt-2">
+            <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <Moon className="w-4 h-4 text-cyan-400"/> 帰りの天気
+            </h2>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { icon: Sun, label: '晴れ', color: 'text-amber-400' },
+                { icon: Cloud, label: 'くもり', color: 'text-slate-300' },
+                { icon: CloudRain, label: '雨', color: 'text-blue-400' },
+                { icon: Snowflake, label: '雪/大雨', color: 'text-indigo-200' },
+              ].map((w) => (
+                <label key={w.label} className="cursor-pointer group">
+                  <input type="radio" value={w.label} {...register('inboundWeather')} className="peer sr-only" />
+                  <div className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-700 bg-slate-800/50 peer-checked:bg-indigo-500/20 peer-checked:border-indigo-500 transition-all active:scale-95 group-hover:bg-slate-800">
+                    <w.icon className={cn("w-6 h-6 mb-1", w.color)} />
+                    <span className="text-[10px] text-slate-300 font-medium">{w.label}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {watchInboundWeather === '雨' && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ (0:小雨 〜 5:土砂降り)</label>
+                <div className="flex gap-1">
+                  {['0', '1', '2', '3', '4', '5'].map((level) => (
+                    <label key={level} className="flex-1">
+                      <input type="radio" value={level} {...register('inboundRainLevel')} className="peer sr-only"/>
+                      <div className="text-center font-bold text-sm py-1.5 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
+                        {level}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Scores */}
@@ -408,8 +457,6 @@ export default function App() {
             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none resize-none h-32 placeholder:text-slate-600 font-medium leading-relaxed"
           ></textarea>
         </div>
-          </>
-        )}
 
         {/* Sleep Data */}
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all">

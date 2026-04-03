@@ -16,46 +16,6 @@ function doPost(e) {
       ]);
     }
 
-    const isSleepOnly = data.updateSleepOnly === true;
-    const targetDateStr = String(data.date || new Date().toLocaleString("ja-JP", {timeZone: "Asia/Tokyo"})).split(' ')[0].replace(/\//g, '-');
-    
-    // シート上の既存データを検索
-    const dataRange = sheet.getDataRange();
-    const values = dataRange.getValues();
-    let rowIndex = -1;
-    for (let i = 1; i < values.length; i++) {
-      let sheetDateStr = values[i][0];
-      if (sheetDateStr instanceof Date) {
-        const y = sheetDateStr.getFullYear();
-        const m = String(sheetDateStr.getMonth() + 1).padStart(2, '0');
-        const d = String(sheetDateStr.getDate()).padStart(2, '0');
-        sheetDateStr = `${y}-${m}-${d}`;
-      } else {
-        sheetDateStr = String(sheetDateStr).split(' ')[0].replace(/\//g, '-');
-      }
-      
-      if (sheetDateStr === targetDateStr) {
-         rowIndex = i + 1; // getRange() は1始まり
-         break;
-      }
-    }
-
-    if (isSleepOnly) {
-      if (rowIndex === -1) {
-        throw new Error("指定した日付（" + targetDateStr + "）のデータが見つかりません。先に通常の日記を入力してください。");
-      }
-      if (!data.sleepImage) {
-        throw new Error("睡眠データの画像（スクショ）が選択されていません。");
-      }
-      
-      const sleepDataStr = analyzeSleepImage(data.sleepImage);
-      // N列目 (列番号14) が「睡眠データ」
-      sheet.getRange(rowIndex, 14).setValue(sleepDataStr);
-      
-      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "既存データに睡眠データを追加しました！" })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 通常の全項目追加モード
     let sleepDataStr = "";
     if (data.sleepImage) {
       sleepDataStr = analyzeSleepImage(data.sleepImage);
