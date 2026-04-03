@@ -182,6 +182,30 @@ export default function App() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
+        {/* Commute logic */}
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <TrainFront className="w-4 h-4 text-pink-400"/> 今日の外出・移動
+          </h2>
+          
+          <div className="flex gap-2 bg-slate-800/80 p-1 rounded-xl">
+            {[
+              { id: 'commuted', label: '通勤あり' },
+              { id: 'wentOut', label: '外出のみ' },
+              { id: 'none', label: '外出なし' },
+            ].map((c) => (
+              <label key={c.id} className="flex-1 text-center cursor-pointer">
+                <input type="radio" value={c.id} {...register('commuteType')} className="peer sr-only" />
+                <div className="py-2.5 text-[13px] font-medium rounded-lg peer-checked:bg-slate-600 peer-checked:text-white text-slate-400 transition-colors">
+                  {c.label}
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+
+
         {/* Weather */}
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
           
@@ -263,70 +287,11 @@ export default function App() {
 
         </div>
 
-        {/* Scores */}
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl space-y-8">
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-indigo-400"/> 総合点
-              </h2>
-              <Controller
-                control={control}
-                name="overallScore"
-                render={({ field }) => (
-                  <div className="bg-indigo-500/10 px-3 py-1 rounded-lg border border-indigo-500/20">
-                    <span className="text-2xl font-black text-indigo-400">{field.value}</span>
-                  </div>
-                )}
-              />
-            </div>
-            <input type="range" min="0" max="100" step="5" {...register('overallScore')} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
-            <div className="flex justify-between text-xs text-slate-500 font-medium mt-2"><span>0</span><span>50</span><span>100</span></div>
-          </div>
+        {/* Train Details */}
+        {watchCommuteType === 'commuted' && (
+          <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
 
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-purple-400"/> 仕事・プライベート点
-              </h2>
-              <Controller
-                control={control}
-                name="workScore"
-                render={({ field }) => (
-                  <div className="bg-purple-500/10 px-3 py-1 rounded-lg border border-purple-500/20">
-                     <span className="text-2xl font-black text-purple-400">{field.value}</span>
-                  </div>
-                )}
-              />
-            </div>
-            <input type="range" min="0" max="100" step="5" {...register('workScore')} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500" />
-            <div className="flex justify-between text-xs text-slate-500 font-medium mt-2"><span>0</span><span>50</span><span>100</span></div>
-          </div>
-        </div>
-
-        {/* Commute logic */}
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-          <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-            <TrainFront className="w-4 h-4 text-pink-400"/> 今日の外出・移動
-          </h2>
-          
-          <div className="flex gap-2 bg-slate-800/80 p-1 rounded-xl">
-            {[
-              { id: 'commuted', label: '通勤あり' },
-              { id: 'wentOut', label: '外出のみ' },
-              { id: 'none', label: '外出なし' },
-            ].map((c) => (
-              <label key={c.id} className="flex-1 text-center cursor-pointer">
-                <input type="radio" value={c.id} {...register('commuteType')} className="peer sr-only" />
-                <div className="py-2.5 text-[13px] font-medium rounded-lg peer-checked:bg-slate-600 peer-checked:text-white text-slate-400 transition-colors">
-                  {c.label}
-                </div>
-              </label>
-            ))}
-          </div>
-
-          {watchCommuteType === 'commuted' && (
-            <div className="space-y-6 pt-5 mt-2 border-t border-slate-800">
+            <div className="space-y-6 pt-2">
               {/* 行き */}
               <div className="space-y-5">
                 <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2 border-l-2 border-blue-500 pl-2">
@@ -461,6 +426,47 @@ export default function App() {
 
             </div>
           )}
+
+
+        {/* Scores */}
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl space-y-8">
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-indigo-400"/> 総合点
+              </h2>
+              <Controller
+                control={control}
+                name="overallScore"
+                render={({ field }) => (
+                  <div className="bg-indigo-500/10 px-3 py-1 rounded-lg border border-indigo-500/20">
+                    <span className="text-2xl font-black text-indigo-400">{field.value}</span>
+                  </div>
+                )}
+              />
+            </div>
+            <input type="range" min="0" max="100" step="5" {...register('overallScore')} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
+            <div className="flex justify-between text-xs text-slate-500 font-medium mt-2"><span>0</span><span>50</span><span>100</span></div>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <Briefcase className="w-4 h-4 text-purple-400"/> 仕事・プライベート点
+              </h2>
+              <Controller
+                control={control}
+                name="workScore"
+                render={({ field }) => (
+                  <div className="bg-purple-500/10 px-3 py-1 rounded-lg border border-purple-500/20">
+                     <span className="text-2xl font-black text-purple-400">{field.value}</span>
+                  </div>
+                )}
+              />
+            </div>
+            <input type="range" min="0" max="100" step="5" {...register('workScore')} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+            <div className="flex justify-between text-xs text-slate-500 font-medium mt-2"><span>0</span><span>50</span><span>100</span></div>
+          </div>
         </div>
 
         {/* Diary */}
