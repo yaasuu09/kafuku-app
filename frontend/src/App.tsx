@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { Send, Image as ImageIcon, CheckCircle, TrainFront, Briefcase, AlignLeft, CloudRain, Sun, Cloud, Snowflake, Moon } from 'lucide-react';
+import { Send, Image as ImageIcon, CheckCircle, TrainFront, Briefcase, AlignLeft, CloudRain, Sun, Cloud, Snowflake, Moon, HelpCircle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -43,7 +43,7 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const { register, handleSubmit, watch, control } = useForm<FormData>({
+  const { register, handleSubmit, watch, control, setValue } = useForm<FormData>({
     defaultValues: {
       date: getTodayString(),
       overallScore: 70,
@@ -53,9 +53,9 @@ export default function App() {
       outboundDelayMins: '5',
       inboundDelay: 'no',
       inboundDelayMins: '5',
-      outboundWeather: '晴れ',
+      outboundWeather: '',
       outboundRainLevel: '0',
-      inboundWeather: '晴れ',
+      inboundWeather: '',
       inboundRainLevel: '0'
     }
   });
@@ -70,6 +70,14 @@ export default function App() {
   const watchOutboundWeather = watch('outboundWeather');
   const watchInboundWeather = watch('inboundWeather');
 
+  useEffect(() => {
+    const isCommuting = watchCommuteType === 'commuted' || watchCommuteType === 'wentOut';
+    if (isCommuting) {
+      if (watchOutboundWeather === '不明') setValue('outboundWeather', '');
+      if (watchInboundWeather === '不明') setValue('inboundWeather', '');
+    }
+  }, [watchCommuteType, watchOutboundWeather, watchInboundWeather, setValue]);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -83,10 +91,17 @@ export default function App() {
   };
 
   const onSubmit = async (data: FormData) => {
+    if (!data.outboundWeather || !data.inboundWeather) {
+      alert("天気を必ずどちらも選択してください。");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const getFormattedWeather = (w: string, r: string) => w === '雨' ? `雨(Lv${r})` : w;
-      const weatherStr = `行き: ${getFormattedWeather(data.outboundWeather, data.outboundRainLevel)} / 帰り: ${getFormattedWeather(data.inboundWeather, data.inboundRainLevel)}`;
+      const isCommuting = data.commuteType === 'commuted' || data.commuteType === 'wentOut';
+      const outLabel = isCommuting ? '行き' : '午前';
+      const inLabel = isCommuting ? '帰り' : '午後';
+      const weatherStr = `${outLabel}: ${getFormattedWeather(data.outboundWeather, data.outboundRainLevel)} / ${inLabel}: ${getFormattedWeather(data.inboundWeather, data.inboundRainLevel)}`;
 
       const payload = {
         date: data.date,
@@ -172,14 +187,15 @@ export default function App() {
           
           <div>
             <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-              <Sun className="w-4 h-4 text-amber-400"/> 行きの天気
+              <Sun className="w-4 h-4 text-amber-400"/> {(watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? '行きの天気' : '午前の天気'}
             </h2>
-            <div className="grid grid-cols-4 gap-2">
+            <div className={cn("grid gap-2", (watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? "grid-cols-4" : "grid-cols-5")}>
               {[
                 { icon: Sun, label: '晴れ', color: 'text-amber-400' },
                 { icon: Cloud, label: 'くもり', color: 'text-slate-300' },
                 { icon: CloudRain, label: '雨', color: 'text-blue-400' },
                 { icon: Snowflake, label: '雪/大雨', color: 'text-indigo-200' },
+                ...((watchCommuteType !== 'commuted' && watchCommuteType !== 'wentOut') ? [{ icon: HelpCircle, label: '不明', color: 'text-slate-500' }] : [])
               ].map((w) => (
                 <label key={w.label} className="cursor-pointer group">
                   <input type="radio" value={w.label} {...register('outboundWeather')} className="peer sr-only" />
@@ -209,14 +225,15 @@ export default function App() {
 
           <div className="pt-2">
             <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-              <Moon className="w-4 h-4 text-cyan-400"/> 帰りの天気
+              <Moon className="w-4 h-4 text-cyan-400"/> {(watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? '帰りの天気' : '午後の天気'}
             </h2>
-            <div className="grid grid-cols-4 gap-2">
+            <div className={cn("grid gap-2", (watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? "grid-cols-4" : "grid-cols-5")}>
               {[
                 { icon: Sun, label: '晴れ', color: 'text-amber-400' },
                 { icon: Cloud, label: 'くもり', color: 'text-slate-300' },
                 { icon: CloudRain, label: '雨', color: 'text-blue-400' },
                 { icon: Snowflake, label: '雪/大雨', color: 'text-indigo-200' },
+                ...((watchCommuteType !== 'commuted' && watchCommuteType !== 'wentOut') ? [{ icon: HelpCircle, label: '不明', color: 'text-slate-500' }] : [])
               ].map((w) => (
                 <label key={w.label} className="cursor-pointer group">
                   <input type="radio" value={w.label} {...register('inboundWeather')} className="peer sr-only" />
