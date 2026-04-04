@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { Send, Image as ImageIcon, CheckCircle, TrainFront, Briefcase, AlignLeft, CloudRain, Sun, Cloud, Snowflake, Moon, HelpCircle } from 'lucide-react';
+import { Send, Image as ImageIcon, CheckCircle, TrainFront, Briefcase, AlignLeft, CloudRain, Sun, Cloud, Snowflake, Moon, HelpCircle, MoreHorizontal, CloudLightning } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -10,8 +10,10 @@ type FormData = {
   date: string;
   outboundWeather: string;
   outboundRainLevel: string;
+  outboundWeatherOther: string;
   inboundWeather: string;
   inboundRainLevel: string;
+  inboundWeatherOther: string;
   overallScore: number;
   workScore: number;
   commuteType: 'commuted' | 'wentOut' | 'none';
@@ -54,9 +56,11 @@ export default function App() {
       inboundDelay: 'no',
       inboundDelayMins: '5',
       outboundWeather: '',
-      outboundRainLevel: '',
+      outboundRainLevel: '0',
+      outboundWeatherOther: '嵐',
       inboundWeather: '',
-      inboundRainLevel: '小雨'
+      inboundRainLevel: '0',
+      inboundWeatherOther: '嵐'
     }
   });
 
@@ -97,12 +101,15 @@ export default function App() {
     }
     setIsSubmitting(true);
     try {
-      const getOutboundFormattedWeather = (w: string) => w;
-      const getInboundFormattedWeather = (w: string, r: string) => w === '雨' ? r : w;
+      const getFormattedWeather = (w: string, r: string, o: string) => {
+        if (w === 'その他') return o || 'その他';
+        if (w === '雨') return r ? `雨(Lv${r})` : '雨';
+        return w;
+      };
       const isCommuting = data.commuteType === 'commuted' || data.commuteType === 'wentOut';
       const outLabel = isCommuting ? '行き' : '午前';
       const inLabel = isCommuting ? '帰り' : '午後';
-      const weatherStr = `${outLabel}: ${getOutboundFormattedWeather(data.outboundWeather)} / ${inLabel}: ${getInboundFormattedWeather(data.inboundWeather, data.inboundRainLevel)}`;
+      const weatherStr = `${outLabel}: ${getFormattedWeather(data.outboundWeather, data.outboundRainLevel, data.outboundWeatherOther)} / ${inLabel}: ${getFormattedWeather(data.inboundWeather, data.inboundRainLevel, data.inboundWeatherOther)}`;
 
       const payload = {
         date: data.date,
@@ -214,13 +221,13 @@ export default function App() {
             <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
               <Sun className="w-4 h-4 text-amber-400"/> {(watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? '行きの天気' : '午前の天気'}
             </h2>
-            <div className={cn("grid gap-2", (watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? "grid-cols-4" : "grid-cols-5")}>
+            <div className="grid gap-2 grid-cols-5">
               {[
                 { icon: Sun, label: '晴れ', color: 'text-amber-400' },
                 { icon: Cloud, label: 'くもり', color: 'text-slate-300' },
                 { icon: CloudRain, label: '雨', color: 'text-blue-400' },
-                { icon: Snowflake, label: '雪/大雨', color: 'text-indigo-200' },
-                ...((watchCommuteType !== 'commuted' && watchCommuteType !== 'wentOut') ? [{ icon: HelpCircle, label: '不明', color: 'text-slate-500' }] : [])
+                { icon: MoreHorizontal, label: 'その他', color: 'text-indigo-200' },
+                { icon: HelpCircle, label: '不明', color: 'text-slate-500' }
               ].map((w) => (
                 <label key={w.label} className="cursor-pointer group">
                   <input type="radio" value={w.label} {...register('outboundWeather')} className="peer sr-only" />
@@ -231,19 +238,54 @@ export default function App() {
                 </label>
               ))}
             </div>
+            {watchOutboundWeather === '雨' && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ (0:小雨 〜 5:土砂降り)</label>
+                <div className="flex gap-1">
+                  {['0', '1', '2', '3', '4', '5'].map((level) => (
+                    <label key={level} className="flex-1">
+                      <input type="radio" value={level} {...register('outboundRainLevel')} className="peer sr-only"/>
+                      <div className="text-center font-bold text-sm py-1.5 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
+                        {level}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            {watchOutboundWeather === 'その他' && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">天気の詳細</label>
+                <div className="flex gap-2">
+                  {[
+                    { val: '嵐', icon: CloudLightning },
+                    { val: '雪', icon: Snowflake },
+                    { val: 'ひょう', icon: CloudRain }
+                  ].map((item) => (
+                    <label key={item.val} className="flex-1">
+                      <input type="radio" value={item.val} {...register('outboundWeatherOther')} className="peer sr-only"/>
+                      <div className="flex items-center justify-center gap-1 font-bold text-xs py-2 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-indigo-500/20 peer-checked:border-indigo-500 peer-checked:text-indigo-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
+                        <item.icon className="w-4 h-4" />
+                        {item.val}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-2">
             <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
               <Moon className="w-4 h-4 text-cyan-400"/> {(watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? '帰りの天気' : '午後の天気'}
             </h2>
-            <div className={cn("grid gap-2", (watchCommuteType === 'commuted' || watchCommuteType === 'wentOut') ? "grid-cols-4" : "grid-cols-5")}>
+            <div className="grid gap-2 grid-cols-5">
               {[
                 { icon: Sun, label: '晴れ', color: 'text-amber-400' },
                 { icon: Cloud, label: 'くもり', color: 'text-slate-300' },
                 { icon: CloudRain, label: '雨', color: 'text-blue-400' },
-                { icon: Snowflake, label: '雪/大雨', color: 'text-indigo-200' },
-                ...((watchCommuteType !== 'commuted' && watchCommuteType !== 'wentOut') ? [{ icon: HelpCircle, label: '不明', color: 'text-slate-500' }] : [])
+                { icon: MoreHorizontal, label: 'その他', color: 'text-indigo-200' },
+                { icon: HelpCircle, label: '不明', color: 'text-slate-500' }
               ].map((w) => (
                 <label key={w.label} className="cursor-pointer group">
                   <input type="radio" value={w.label} {...register('inboundWeather')} className="peer sr-only" />
@@ -256,13 +298,33 @@ export default function App() {
             </div>
             {watchInboundWeather === '雨' && (
               <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ</label>
-                <div className="flex gap-2">
-                  {['小雨', '中雨', '大雨'].map((level) => (
+                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ (0:小雨 〜 5:土砂降り)</label>
+                <div className="flex gap-1">
+                  {['0', '1', '2', '3', '4', '5'].map((level) => (
                     <label key={level} className="flex-1">
                       <input type="radio" value={level} {...register('inboundRainLevel')} className="peer sr-only"/>
-                      <div className="text-center font-bold text-sm py-2 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
+                      <div className="text-center font-bold text-sm py-1.5 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
                         {level}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            {watchInboundWeather === 'その他' && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">天気の詳細</label>
+                <div className="flex gap-2">
+                  {[
+                    { val: '嵐', icon: CloudLightning },
+                    { val: '雪', icon: Snowflake },
+                    { val: 'ひょう', icon: CloudRain }
+                  ].map((item) => (
+                    <label key={item.val} className="flex-1">
+                      <input type="radio" value={item.val} {...register('inboundWeatherOther')} className="peer sr-only"/>
+                      <div className="flex items-center justify-center gap-1 font-bold text-xs py-2 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-indigo-500/20 peer-checked:border-indigo-500 peer-checked:text-indigo-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
+                        <item.icon className="w-4 h-4" />
+                        {item.val}
                       </div>
                     </label>
                   ))}
