@@ -54,9 +54,9 @@ export default function App() {
       inboundDelay: 'no',
       inboundDelayMins: '5',
       outboundWeather: '',
-      outboundRainLevel: '0',
+      outboundRainLevel: '',
       inboundWeather: '',
-      inboundRainLevel: '0'
+      inboundRainLevel: '小雨'
     }
   });
 
@@ -97,11 +97,12 @@ export default function App() {
     }
     setIsSubmitting(true);
     try {
-      const getFormattedWeather = (w: string, r: string) => w === '雨' ? `雨(Lv${r})` : w;
+      const getOutboundFormattedWeather = (w: string) => w;
+      const getInboundFormattedWeather = (w: string, r: string) => w === '雨' ? r : w;
       const isCommuting = data.commuteType === 'commuted' || data.commuteType === 'wentOut';
       const outLabel = isCommuting ? '行き' : '午前';
       const inLabel = isCommuting ? '帰り' : '午後';
-      const weatherStr = `${outLabel}: ${getFormattedWeather(data.outboundWeather, data.outboundRainLevel)} / ${inLabel}: ${getFormattedWeather(data.inboundWeather, data.inboundRainLevel)}`;
+      const weatherStr = `${outLabel}: ${getOutboundFormattedWeather(data.outboundWeather)} / ${inLabel}: ${getInboundFormattedWeather(data.inboundWeather, data.inboundRainLevel)}`;
 
       const payload = {
         date: data.date,
@@ -230,21 +231,6 @@ export default function App() {
                 </label>
               ))}
             </div>
-            {watchOutboundWeather === '雨' && (
-              <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ (0:小雨 〜 5:土砂降り)</label>
-                <div className="flex gap-1">
-                  {['0', '1', '2', '3', '4', '5'].map((level) => (
-                    <label key={level} className="flex-1">
-                      <input type="radio" value={level} {...register('outboundRainLevel')} className="peer sr-only"/>
-                      <div className="text-center font-bold text-sm py-1.5 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
-                        {level}
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="pt-2">
@@ -270,12 +256,12 @@ export default function App() {
             </div>
             {watchInboundWeather === '雨' && (
               <div className="mt-3 pt-3 border-t border-slate-700/50 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ (0:小雨 〜 5:土砂降り)</label>
-                <div className="flex gap-1">
-                  {['0', '1', '2', '3', '4', '5'].map((level) => (
+                <label className="text-[11px] font-semibold text-slate-400 mb-2 block">雨の強さ</label>
+                <div className="flex gap-2">
+                  {['小雨', '中雨', '大雨'].map((level) => (
                     <label key={level} className="flex-1">
                       <input type="radio" value={level} {...register('inboundRainLevel')} className="peer sr-only"/>
-                      <div className="text-center font-bold text-sm py-1.5 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
+                      <div className="text-center font-bold text-sm py-2 border border-slate-700 bg-slate-800/50 rounded-lg peer-checked:bg-blue-500/20 peer-checked:border-blue-500 peer-checked:text-blue-300 text-slate-400 transition-all active:scale-95 cursor-pointer">
                         {level}
                       </div>
                     </label>
