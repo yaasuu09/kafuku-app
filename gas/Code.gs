@@ -365,7 +365,18 @@ function handleRecoverSleepData(data) {
     const timestamps = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
     let targetRow = -1;
     for (let i = 0; i < timestamps.length; i++) {
-      if (String(timestamps[i][0]).includes(targetDate)) {
+      let cellVal = timestamps[i][0];
+      let cellDateStr = "";
+      
+      // スプレッドシートの値がDateオブジェクトの場合、YYYY-MM-DD形式に変換
+      if (cellVal instanceof Date) {
+        cellDateStr = Utilities.formatDate(cellVal, "Asia/Tokyo", "yyyy-MM-dd");
+      } else {
+        // 文字列の場合はスラッシュをハイフンに置換するなどして正規化
+        cellDateStr = String(cellVal).replace(/\//g, '-');
+      }
+
+      if (cellDateStr.includes(targetDate)) {
         targetRow = i + 2; // 1-indexed, starting from row 2
         break;
       }

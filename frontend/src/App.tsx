@@ -254,31 +254,49 @@ export default function App() {
 
       setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'uploading' } : f));
 
-      try {
-        const payload = {
-          action: 'recover_sleep_data',
-          date: bf.inferredDate,
-          sleepImage: bf.base64Data
-        };
+      let success = false;
+      let retryCount = 0;
 
-        const res = await fetch(url, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        });
-        const result = await res.json();
-        
-        if (result.status === 'success') {
-          setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'success', message: '修復完了' } : f));
-        } else {
-          setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: result.message || 'エラー' } : f));
+      while (!success && retryCount < 3) {
+        try {
+          const payload = {
+            action: 'recover_sleep_data',
+            date: bf.inferredDate,
+            sleepImage: bf.base64Data
+          };
+
+          const res = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+          });
+          const result = await res.json();
+          
+          if (result.status === 'success') {
+            setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'success', message: '修復完了' } : f));
+            success = true;
+          } else {
+            // API制限（429/503エラー）の場合は自動待機してリトライ
+            if (result.message && (result.message.includes('429') || result.message.includes('503'))) {
+              setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'pending', message: 'API制限のため60秒待機して再試行します...' } : f));
+              await new Promise(r => setTimeout(r, 60000));
+              retryCount++;
+              setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'uploading' } : f));
+            } else {
+              setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: result.message || 'エラー' } : f));
+              break; // その他のエラーは再試行しない
+            }
+          }
+        } catch (e) {
+          setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: '通信エラー' } : f));
+          break;
         }
-      } catch (e) {
-        setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: '通信エラー' } : f));
       }
       
-      // レート制限やサーバー負荷を考慮して1秒待機
-      await new Promise(r => setTimeout(r, 1000));
+      if (success) {
+        // API上限（1分間に15回）を回避するため、リクエストごとに5秒待機する
+        await new Promise(r => setTimeout(r, 5000));
+      }
     }
     
     setIsBatchProcessing(false);
