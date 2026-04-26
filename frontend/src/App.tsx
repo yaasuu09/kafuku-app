@@ -44,6 +44,8 @@ export default function App() {
   const [sleepFileName, setSleepFileName] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
 
   const { register, handleSubmit, watch, control, setValue } = useForm<FormData>({
     defaultValues: {
@@ -156,6 +158,35 @@ export default function App() {
     }
   };
 
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    try {
+      const url = import.meta.env.VITE_GAS_URL;
+      if (!url) {
+        alert("GAS URL is not set in environment variables!");
+        return;
+      }
+      const res = await fetch(url, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'analyze' }),
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        }
+      });
+      const result = await res.json();
+      if (result.status === 'success') {
+        setAnalysisResult(result.report);
+      } else {
+        alert("分析エラー: " + result.message);
+      }
+    } catch (e) {
+      alert("通信エラーが発生しました");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   if (isSuccess) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-500">
@@ -187,6 +218,35 @@ export default function App() {
           <span className="text-slate-400 text-sm">の記録</span>
         </div>
       </header>
+      
+      {/* AI ダッシュボード */}
+      <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-500">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2">
+            <span className="text-lg">📊</span> 過去直近データの相関分析
+          </h2>
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={isAnalyzing}
+            className="text-xs px-3 py-1.5 bg-indigo-500/20 text-indigo-300 font-bold rounded-lg border border-indigo-500/30 hover:bg-indigo-500/30 transition-all disabled:opacity-50 flex items-center gap-1 active:scale-95"
+          >
+            {isAnalyzing ? (
+              <><span className="w-3 h-3 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin"></span> 分析中...</>
+            ) : "実行する"}
+          </button>
+        </div>
+        
+        {analysisResult && (
+          <div className="mt-4 pt-4 border-t border-slate-800/80 animate-in fade-in zoom-in-95 duration-300">
+            <div className="p-4 bg-slate-950/80 rounded-xl border border-slate-800">
+              <div className="text-xs text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
+                {analysisResult}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
