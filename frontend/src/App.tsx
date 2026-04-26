@@ -747,13 +747,7 @@ export default function App() {
                 <div className="flex-1 flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400">対象日付:</span>
-                    <input 
-                      type="date" 
-                      value={bf.inferredDate} 
-                      onChange={(e) => updateBatchFileDate(bf.id, e.target.value)}
-                      disabled={isBatchProcessing || bf.status === 'success'}
-                      className="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded px-2 py-1 outline-none"
-                    />
+                    <span className="text-xs text-emerald-400 font-medium bg-emerald-400/10 px-2 py-1 rounded">AIが画像から自動読取</span>
                   </div>
                   <div className="text-xs flex items-center gap-1">
                     {bf.status === 'pending' && <span className="text-slate-400">待機中...</span>}

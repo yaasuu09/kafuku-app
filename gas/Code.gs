@@ -283,6 +283,50 @@ ${dataPrompt}`;
 // 過去データの睡眠データ一括修復機能
 // ==========================================
 
+function analyzeSleepImageWithDate(base64Image) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+  if (!apiKey) return JSON.stringify({ error: "API Key not set" });
+  
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+  const base64Data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+  
+  const payload = {
+    "contents": [{
+      "parts": [
+        {"text": "このApple Watchの睡眠データのスクリーンショットから、左上などに記載されている「対象の日付（例：4月25日）」と、各種睡眠の数値を正確に読み取ってください。\n\n現在は2026年です。以下のJSON形式のみで出力してください。マークダウン(```json等)は絶対に含めないでください。純粋なJSON文字列だけを返してください。\n\n{\n  \"date\": \"2026-04-25\",\n  \"text\": \"総睡眠時間: 〇時間〇分\\n覚醒: 〇分\\nレム: 〇時間〇分\\nコア: 〇時間〇分\\n深い: 〇時間〇分\"\n}\n\n見えない項目は「不明」としてください。" },
+        {
+          "inlineData": {
+            "mimeType": "image/jpeg",
+            "data": base64Data
+          }
+        }
+      ]
+    }]
+  };
+  
+  const options = {
+    "method": "post",
+    "contentType": "application/json",
+    "payload": JSON.stringify(payload),
+    "muteHttpExceptions": true
+  };
+  
+  try {
+    const response = UrlFetchApp.fetch(endpoint, options);
+    const json = JSON.parse(response.getContentText());
+    if (json.candidates && json.candidates.length > 0) {
+      let resultText = json.candidates[0].content.parts[0].text.trim();
+      resultText = resultText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+      return resultText;
+    } else {
+      return JSON.stringify({ error: "解析エラー: " + response.getContentText() });
+    }
+  } catch(e) {
+    return JSON.stringify({ error: "解析エラー: " + e.toString() });
+  }
+}
+
+
 function handleRecoverSleepData(data) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -293,35 +337,48 @@ function handleRecoverSleepData(data) {
       return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "データがありません。" })).setMimeType(ContentService.MimeType.JSON);
     }
     
-    if (!data.date || !data.sleepImage) {
-      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "日付または画像データが不足しています。" })).setMimeType(ContentService.MimeType.JSON);
+    if (!data.sleepImage) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "画像データが不足しています。" })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // AIで画像から日付とテキストを読み取る
+    const aiResultStr = analyzeSleepImageWithDate(data.sleepImage);
+    let aiResult;
+    try {
+      aiResult = JSON.parse(aiResultStr);
+    } catch(e) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `AIの応答を解析できませんでした。JSONパース失敗: ${aiResultStr}` })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (aiResult.error) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `AIエラー: ${aiResult.error}` })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    const targetDate = aiResult.date; // e.g., "2026-04-25"
+    const sleepDataStr = aiResult.text;
+    
+    if (!targetDate || !sleepDataStr) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "画像から日付または睡眠データを読み取れませんでした。" })).setMimeType(ContentService.MimeType.JSON);
     }
 
     // タイムスタンプ列（A列）を取得して日付を検索
     const timestamps = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
     let targetRow = -1;
     for (let i = 0; i < timestamps.length; i++) {
-      if (String(timestamps[i][0]).includes(data.date)) {
+      if (String(timestamps[i][0]).includes(targetDate)) {
         targetRow = i + 2; // 1-indexed, starting from row 2
         break;
       }
     }
     
     if (targetRow === -1) {
-      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `${data.date} の記録が見つかりません。` })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 画像解析を実行
-    const sleepDataStr = analyzeSleepImage(data.sleepImage);
-    
-    if (sleepDataStr.startsWith("API Key not set") || sleepDataStr.startsWith("解析エラー")) {
-       return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `AI解析に失敗しました: ${sleepDataStr}` })).setMimeType(ContentService.MimeType.JSON);
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `${targetDate} (画像から抽出) の記録がスプレッドシートに見つかりません。` })).setMimeType(ContentService.MimeType.JSON);
     }
     
     // 睡眠データ列（14列目/N列）を上書き
     sheet.getRange(targetRow, 14).setValue(sleepDataStr);
     
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: `${data.date} のデータを修復しました。`, result: sleepDataStr })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: `${targetDate} のデータを修復しました。`, result: sleepDataStr })).setMimeType(ContentService.MimeType.JSON);
     
   } catch(e) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "修復処理中にエラーが発生しました: " + e.toString() })).setMimeType(ContentService.MimeType.JSON);
