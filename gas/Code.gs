@@ -2,6 +2,14 @@ function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     
+    if (data.action === "analyze") {
+      return handleAnalyzeRequest();
+    }
+    
+    if (data.action === "recover_sleep_data") {
+      return handleRecoverSleepData(data);
+    }
+    
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     // デフォルトのシート（一番左）または "Data" というシートを使用
     const sheet = ss.getSheetByName("Data") || ss.getSheets()[0];
@@ -62,8 +70,7 @@ function analyzeSleepImage(base64Image) {
   const apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
   if (!apiKey) return "API Key not set: スクリプトプロパティにGEMINI_API_KEYを設定してください";
   
-  // Gemini 1.5 Flash（またはPro）のエンドポイント
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
   
   // Base64文字列から "data:image/jpeg;base64," 等のヘッダー部分を削除して純粋なBase64データにする
   const base64Data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
@@ -73,8 +80,8 @@ function analyzeSleepImage(base64Image) {
       "parts": [
         {"text": "このApple Watchの睡眠データのスクリーンショットから画像内の数値を正確に読み取ってください。以下の形式でテキストとして改行区切りで出力してください：\n総睡眠時間: 〇時間〇分\n覚醒: 〇分\nレム: 〇時間〇分\nコア: 〇時間〇分\n深い: 〇時間〇分\n\n見えない項目は「不明」としてください。余計な文章は不要です。"},
         {
-          "inline_data": {
-            "mime_type": "image/jpeg", // フロントからjpeg等で送る想定
+          "inlineData": {
+            "mimeType": "image/jpeg", // フロントからjpeg等で送る想定
             "data": base64Data
           }
         }
@@ -193,5 +200,130 @@ function scheduleTodayReminder() {
     Logger.log("今日の " + date.toString() + " に通知をセットしました");
   } else {
     Logger.log("既に22:30を過ぎているため、本日の通知トリガーはセットしません");
+  }
+}
+
+// ==========================================
+// AI ダッシュボード分析機能
+// ==========================================
+
+function handleAnalyzeRequest() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Data") || ss.getSheets()[0];
+  const lastRow = sheet.getLastRow();
+  
+  if (lastRow <= 1) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "データがありません。" })).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // 直近30件のデータを取得
+  const startRow = Math.max(2, lastRow - 29);
+  const numRows = lastRow - startRow + 1;
+  const dataRange = sheet.getRange(startRow, 1, numRows, sheet.getLastColumn());
+  const data = dataRange.getValues();
+  
+  // データをAI向けに整形
+  let dataPrompt = "【過去直近の記録データ】\n";
+  data.forEach(row => {
+    // 0:タイムスタンプ, 1:総合点, 2:仕事点, 3:天気, 7:行き遅延, 10:帰り遅延, 11:不快なこと, 13:睡眠データ
+    dataPrompt += `・${row[0]}: 総合${row[1]}点, 仕事${row[2]}点, 天気(${row[3]}), 行き遅延(${row[7]}), 帰り遅延(${row[10]}), 不快なこと(${row[11]}), 睡眠(${row[13]})\n`;
+  });
+  
+  // 要件に合わせたプロンプト（禍福の検証）
+  const prompt = `あなたはユーザーの毎日のメンタルやパフォーマンスをサポートする専属アシスタントです。いつも通りの親しみやすく温かい口調で話しかけてください！
+
+このアプリは「禍福は糾える縄の如し（嫌なことがあった後には良いことが起こるかもしれない）」というジンクスを検証するために作られています。
+以下の直近約1ヶ月の記録データを分析して、レポートを作成してください。
+
+【分析のポイント】
+- 最大の目的は「朝の通勤で遅延や不快な出来事があった日」や「天気が悪かった日」に、逆に「その日の仕事点や総合点が高くなっているか？」という『禍福のジンクス』が成立しているかを検証することです。
+- 単純に「通勤が混雑していたからスコアが低いですね」という当たり前の相関を指摘するのではなく、「嫌なことがあった日ほど、意外と良い日になっていないか？」という視点でデータを掘り下げてください。
+- もちろん、データにない関連性を勝手に捏造したり、無理にジンクスを肯定するのは絶対にやめてください。「ジンクス通りになってますね！」あるいは「今のところジンクス通りにはなっておらず、嫌なことがあると普通にスコアも下がってますね（笑）」など、事実を正直に伝えてください。
+- 「睡眠データ」がスコアに与える影響もあれば、サブ要素として客観的に教えてください。
+- アドバイスというよりは、「今月はこんな傾向がありましたよ」と、一緒にジンクスを検証して楽しむようなトーンでお願いします。
+- Markdown形式で見やすく整理してください。
+
+${dataPrompt}`;
+
+  const apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+  if (!apiKey) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "APIキーが設定されていません。" })).setMimeType(ContentService.MimeType.JSON);
+  }
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+  const payload = {
+    "contents": [{"parts": [{"text": prompt}]}],
+    "generationConfig": {
+        "temperature": 0.2
+    }
+  };
+  
+  const options = {
+    "method": "post",
+    "contentType": "application/json",
+    "payload": JSON.stringify(payload),
+    "muteHttpExceptions": true
+  };
+  
+  try {
+    const response = UrlFetchApp.fetch(endpoint, options);
+    const json = JSON.parse(response.getContentText());
+    if (json.candidates && json.candidates.length > 0) {
+      const report = json.candidates[0].content.parts[0].text.trim();
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", report: report })).setMimeType(ContentService.MimeType.JSON);
+    } else {
+      const errorDetail = json.error ? json.error.message : response.getContentText();
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `AIからの応答が得られませんでした。詳細: ${errorDetail}` })).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch(e) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "分析エラーが発生しました: " + e.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// ==========================================
+// 過去データの睡眠データ一括修復機能
+// ==========================================
+
+function handleRecoverSleepData(data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("Data") || ss.getSheets()[0];
+    const lastRow = sheet.getLastRow();
+    
+    if (lastRow <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "データがありません。" })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (!data.date || !data.sleepImage) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "日付または画像データが不足しています。" })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // タイムスタンプ列（A列）を取得して日付を検索
+    const timestamps = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    let targetRow = -1;
+    for (let i = 0; i < timestamps.length; i++) {
+      if (String(timestamps[i][0]).includes(data.date)) {
+        targetRow = i + 2; // 1-indexed, starting from row 2
+        break;
+      }
+    }
+    
+    if (targetRow === -1) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `${data.date} の記録が見つかりません。` })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 画像解析を実行
+    const sleepDataStr = analyzeSleepImage(data.sleepImage);
+    
+    if (sleepDataStr.startsWith("API Key not set") || sleepDataStr.startsWith("解析エラー")) {
+       return ContentService.createTextOutput(JSON.stringify({ status: "error", message: `AI解析に失敗しました: ${sleepDataStr}` })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // 睡眠データ列（14列目/N列）を上書き
+    sheet.getRange(targetRow, 14).setValue(sleepDataStr);
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", message: `${data.date} のデータを修復しました。`, result: sleepDataStr })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch(e) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "修復処理中にエラーが発生しました: " + e.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
 }
