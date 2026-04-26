@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { Send, Image as ImageIcon, CheckCircle, TrainFront, Briefcase, AlignLeft, CloudRain, Sun, Cloud, Snowflake, Moon, HelpCircle, MoreHorizontal, CloudLightning, Database, Trash2, RefreshCw, XCircle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -59,6 +59,7 @@ export default function App() {
   
   const [batchFiles, setBatchFiles] = useState<BatchFile[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const isBatchProcessingRef = useRef(false);
 
   const { register, handleSubmit, watch, control, setValue } = useForm<FormData>({
     defaultValues: {
@@ -237,7 +238,8 @@ export default function App() {
   };
 
   const startBatchRecovery = async () => {
-    if (batchFiles.length === 0) return;
+    if (batchFiles.length === 0 || isBatchProcessingRef.current) return;
+    isBatchProcessingRef.current = true;
     setIsBatchProcessing(true);
     
     const url = import.meta.env.VITE_GAS_URL;
@@ -284,22 +286,33 @@ export default function App() {
               setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'uploading' } : f));
             } else {
               setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: result.message || 'エラー' } : f));
-              break; // その他のエラーは再試行しない
+              break; // その他の永続エラーは再試行しない
             }
           }
         } catch (e) {
-          setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: '通信エラー' } : f));
-          break;
+          // fetch自体の通信エラー（スマホがスリープした、一時的な切断、CORSブロック等）
+          setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'pending', message: `通信エラー（${retryCount + 1}/3回目）再試行します...` } : f));
+          await new Promise(r => setTimeout(r, 10000)); // 通信回復を待つため10秒待機
+          retryCount++;
+          if (retryCount < 3) {
+            setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'uploading' } : f));
+          } else {
+            setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: '通信エラー（再試行上限に達しました）' } : f));
+          }
         }
       }
       
       if (success) {
         // API上限（1分間に15回）を回避するため、リクエストごとに5秒待機する
         await new Promise(r => setTimeout(r, 5000));
+      } else {
+        // 失敗してスキップする場合も、通信の詰まりを防ぐため5秒待機して次へ
+        await new Promise(r => setTimeout(r, 5000));
       }
     }
     
     setIsBatchProcessing(false);
+    isBatchProcessingRef.current = false;
   };
 
   if (isSuccess) {
@@ -764,7 +777,7 @@ export default function App() {
                     <span className="text-xs text-emerald-400 font-medium bg-emerald-400/10 px-2 py-1 rounded">AIが画像から自動読取</span>
                   </div>
                   <div className="text-xs flex items-center gap-1">
-                    {bf.status === 'pending' && <span className="text-slate-400">待機中...</span>}
+                    {bf.status === 'pending' && <span className="text-slate-400">{bf.message || '待機中...'}</span>}
                     {bf.status === 'uploading' && <span className="text-blue-400 flex items-center gap-1"><RefreshCw className="w-3 h-3 animate-spin"/> 修復中...</span>}
                     {bf.status === 'success' && <span className="text-green-400 flex items-center gap-1"><CheckCircle className="w-3 h-3"/> {bf.message}</span>}
                     {bf.status === 'error' && <span className="text-rose-400 flex items-center gap-1"><XCircle className="w-3 h-3"/> {bf.message}</span>}
