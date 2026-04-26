@@ -236,10 +236,6 @@ export default function App() {
     setBatchFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const updateBatchFileDate = (id: string, newDate: string) => {
-    setBatchFiles(prev => prev.map(f => f.id === id ? { ...f, inferredDate: newDate } : f));
-  };
-
   const startBatchRecovery = async () => {
     if (batchFiles.length === 0) return;
     setIsBatchProcessing(true);
