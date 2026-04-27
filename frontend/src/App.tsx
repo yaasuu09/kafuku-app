@@ -31,15 +31,7 @@ type FormData = {
   diary: string;
 };
 
-type BatchFile = {
-  id: string;
-  file: File;
-  preview: string;
-  inferredDate: string;
-  status: 'pending' | 'uploading' | 'success' | 'error';
-  message?: string;
-  base64Data?: string;
-};
+
 
 const getTodayString = () => {
   const d = new Date();
@@ -50,16 +42,7 @@ const getTodayString = () => {
 };
 
 export default function App() {
-  const [sleepImageBase64, setSleepImageBase64] = useState<string | null>(null);
-  const [sleepFileName, setSleepFileName] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  
-  const [batchFiles, setBatchFiles] = useState<BatchFile[]>([]);
-  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
-  const isBatchProcessingRef = useRef(false);
+
 
   const { register, handleSubmit, watch, control, setValue } = useForm<FormData>({
     defaultValues: {
@@ -98,17 +81,8 @@ export default function App() {
     }
   }, [watchCommuteType, watchOutboundWeather, watchInboundWeather, setValue]);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSleepFileName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSleepImageBase64(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const onSubmit = async (data: FormData) => {
     if (!data.outboundWeather || !data.inboundWeather) {
@@ -140,8 +114,7 @@ export default function App() {
         inboundStation: data.inboundSat === 'yes' ? data.inboundStation : '',
         inboundDelay: data.inboundDelay === 'yes' ? (data.inboundDelayMins === 'その他' ? (data.inboundDelayOther || 'その他') : `${data.inboundDelayMins}分`) : 'なし',
         unpleasantEvents: data.unpleasantEvents,
-        diary: data.diary,
-        sleepImage: sleepImageBase64
+        diary: data.diary
       };
 
       const url = import.meta.env.VITE_GAS_URL;
@@ -172,148 +145,7 @@ export default function App() {
     }
   };
 
-  const handleAnalyze = async () => {
-    setIsAnalyzing(true);
-    setAnalysisResult(null);
-    try {
-      const url = import.meta.env.VITE_GAS_URL;
-      if (!url) {
-        alert("GAS URL is not set in environment variables!");
-        return;
-      }
-      const res = await fetch(url, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'analyze' }),
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        }
-      });
-      const result = await res.json();
-      if (result.status === 'success') {
-        setAnalysisResult(result.report);
-      } else {
-        alert("分析エラー: " + result.message);
-      }
-    } catch (e) {
-      alert("通信エラーが発生しました");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
-  const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const filesArray = Array.from(e.target.files);
-      const newBatchFiles: BatchFile[] = await Promise.all(
-        filesArray.map(async (file) => {
-          const id = Math.random().toString(36).substring(7);
-          const preview = URL.createObjectURL(file);
-          // 最終更新日時から日付を推測 (例: 2026-04-26)
-          const d = new Date(file.lastModified);
-          const inferredDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          
-          return new Promise<BatchFile>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              resolve({
-                id,
-                file,
-                preview,
-                inferredDate,
-                status: 'pending',
-                base64Data: reader.result as string
-              });
-            };
-            reader.readAsDataURL(file);
-          });
-        })
-      );
-      setBatchFiles((prev) => [...prev, ...newBatchFiles]);
-    }
-    e.target.value = '';
-  };
-
-  const removeBatchFile = (id: string) => {
-    setBatchFiles(prev => prev.filter(f => f.id !== id));
-  };
-
-  const startBatchRecovery = async () => {
-    if (batchFiles.length === 0 || isBatchProcessingRef.current) return;
-    isBatchProcessingRef.current = true;
-    setIsBatchProcessing(true);
-    
-    const url = import.meta.env.VITE_GAS_URL;
-    if (!url) {
-      alert("GAS URL is not set!");
-      setIsBatchProcessing(false);
-      return;
-    }
-
-    // 1件ずつ直列で処理
-    for (let i = 0; i < batchFiles.length; i++) {
-      const bf = batchFiles[i];
-      if (bf.status === 'success') continue; // すでに成功しているものはスキップ
-
-      setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'uploading' } : f));
-
-      let success = false;
-      let retryCount = 0;
-
-      while (!success && retryCount < 3) {
-        try {
-          const payload = {
-            action: 'recover_sleep_data',
-            date: bf.inferredDate,
-            sleepImage: bf.base64Data
-          };
-
-          const res = await fetch(url, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-          });
-          const result = await res.json();
-          
-          if (result.status === 'success') {
-            setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'success', message: '修復完了' } : f));
-            success = true;
-          } else {
-            // API制限（429/503エラー）の場合は自動待機してリトライ
-            if (result.message && (result.message.includes('429') || result.message.includes('503'))) {
-              setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'pending', message: 'API制限のため60秒待機して再試行します...' } : f));
-              await new Promise(r => setTimeout(r, 60000));
-              retryCount++;
-              setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'uploading' } : f));
-            } else {
-              setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: result.message || 'エラー' } : f));
-              break; // その他の永続エラーは再試行しない
-            }
-          }
-        } catch (e) {
-          // fetch自体の通信エラー（スマホがスリープした、一時的な切断、CORSブロック等）
-          setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'pending', message: `通信エラー（${retryCount + 1}/3回目）再試行します...` } : f));
-          await new Promise(r => setTimeout(r, 10000)); // 通信回復を待つため10秒待機
-          retryCount++;
-          if (retryCount < 3) {
-            setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'uploading' } : f));
-          } else {
-            setBatchFiles(prev => prev.map(f => f.id === bf.id ? { ...f, status: 'error', message: '通信エラー（再試行上限に達しました）' } : f));
-          }
-        }
-      }
-      
-      if (success) {
-        // API上限（1分間に15回）を回避するため、リクエストごとに5秒待機する
-        await new Promise(r => setTimeout(r, 5000));
-      } else {
-        // 失敗してスキップする場合も、通信の詰まりを防ぐため5秒待機して次へ
-        await new Promise(r => setTimeout(r, 5000));
-      }
-    }
-    
-    setIsBatchProcessing(false);
-    isBatchProcessingRef.current = false;
-  };
 
   if (isSuccess) {
     return (
@@ -347,34 +179,6 @@ export default function App() {
         </div>
       </header>
       
-      {/* AI ダッシュボード */}
-      <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl animate-in fade-in slide-in-from-top-2 duration-500">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <span className="text-lg">📊</span> 過去直近データの相関分析
-          </h2>
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            disabled={isAnalyzing}
-            className="text-xs px-3 py-1.5 bg-indigo-500/20 text-indigo-300 font-bold rounded-lg border border-indigo-500/30 hover:bg-indigo-500/30 transition-all disabled:opacity-50 flex items-center gap-1 active:scale-95"
-          >
-            {isAnalyzing ? (
-              <><span className="w-3 h-3 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin"></span> 分析中...</>
-            ) : "実行する"}
-          </button>
-        </div>
-        
-        {analysisResult && (
-          <div className="mt-4 pt-4 border-t border-slate-800/80 animate-in fade-in zoom-in-95 duration-300">
-            <div className="p-4 bg-slate-950/80 rounded-xl border border-slate-800">
-              <div className="text-xs text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
-                {analysisResult}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
@@ -716,28 +520,6 @@ export default function App() {
             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none resize-none h-32 placeholder:text-slate-600 font-medium leading-relaxed"
           ></textarea>
         </div>
-
-        {/* Sleep Data */}
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl transition-all">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-            <Moon className="w-4 h-4 text-cyan-400"/> 睡眠データ (Apple Watch)
-          </h2>
-          <label className="flex flex-col items-center justify-center w-full min-h-[100px] border-2 border-slate-700 border-dashed rounded-xl cursor-pointer bg-slate-800/40 hover:bg-slate-800 transition-colors group">
-            <div className="flex flex-col items-center justify-center py-6 px-4">
-              <ImageIcon className={cn("w-8 h-8 transition-colors mb-3", sleepImageBase64 ? "text-cyan-400" : "text-slate-500 group-hover:text-cyan-400")} />
-              <p className="text-xs font-medium text-slate-400 text-center break-all">
-                {sleepFileName ? sleepFileName : 'タップしてスクショを選択'}
-              </p>
-            </div>
-            <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-          </label>
-          {sleepImageBase64 && (
-            <div className="mt-4 relative rounded-xl overflow-hidden border border-slate-700 shadow-lg animate-in fade-in duration-300">
-              <img src={sleepImageBase64} alt="Sleep Preview" className="w-full max-h-64 object-contain bg-slate-900 opacity-90 p-2" />
-            </div>
-          )}
-        </div>
-
         {/* Submit */}
         <button 
           type="submit" 
@@ -752,63 +534,6 @@ export default function App() {
         </button>
       </form>
 
-      {/* Batch Recovery Tool */}
-      <div className="mt-12 bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
-          <Database className="w-4 h-4 text-rose-400"/> 【データ修復】過去の睡眠データ一括リカバリ
-        </h2>
-        <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-          解析エラーになってしまった過去の睡眠データを修復します。カメラロールから該当する日のスクショを複数選択してアップロードしてください。（画像の日付から自動で該当行を上書きします）
-        </p>
-
-        <label className="flex flex-col items-center justify-center w-full min-h-[80px] border-2 border-slate-700 border-dashed rounded-xl cursor-pointer bg-slate-800/40 hover:bg-slate-800 transition-colors mb-4">
-          <span className="text-sm font-medium text-slate-300 py-4">画像を選択 (複数可)</span>
-          <input type="file" multiple className="hidden" accept="image/*" onChange={handleBatchFileChange} disabled={isBatchProcessing} />
-        </label>
-
-        {batchFiles.length > 0 && (
-          <div className="space-y-3 mb-4 max-h-96 overflow-y-auto pr-2">
-            {batchFiles.map((bf) => (
-              <div key={bf.id} className="flex items-center gap-3 bg-slate-800/60 p-3 rounded-xl border border-slate-700">
-                <img src={bf.preview} alt="preview" className="w-12 h-12 object-cover rounded-lg" />
-                <div className="flex-1 flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">対象日付:</span>
-                    <span className="text-xs text-emerald-400 font-medium bg-emerald-400/10 px-2 py-1 rounded">AIが画像から自動読取</span>
-                  </div>
-                  <div className="text-xs flex items-center gap-1">
-                    {bf.status === 'pending' && <span className="text-slate-400">{bf.message || '待機中...'}</span>}
-                    {bf.status === 'uploading' && <span className="text-blue-400 flex items-center gap-1"><RefreshCw className="w-3 h-3 animate-spin"/> 修復中...</span>}
-                    {bf.status === 'success' && <span className="text-green-400 flex items-center gap-1"><CheckCircle className="w-3 h-3"/> {bf.message}</span>}
-                    {bf.status === 'error' && <span className="text-rose-400 flex items-center gap-1"><XCircle className="w-3 h-3"/> {bf.message}</span>}
-                  </div>
-                </div>
-                {bf.status !== 'uploading' && bf.status !== 'success' && (
-                  <button onClick={() => removeBatchFile(bf.id)} className="p-2 text-slate-500 hover:text-rose-400 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {batchFiles.length > 0 && (
-          <button 
-            onClick={startBatchRecovery}
-            disabled={isBatchProcessing || batchFiles.every(f => f.status === 'success')}
-            className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-white bg-slate-800 hover:bg-slate-700 border border-slate-600 transition-all outline-none disabled:opacity-50"
-          >
-            {isBatchProcessing ? (
-              <><RefreshCw className="w-4 h-4 animate-spin" /> 修復を実行中...</>
-            ) : batchFiles.every(f => f.status === 'success') ? (
-              <><CheckCircle className="w-4 h-4 text-green-400" /> 全ての修復が完了しました</>
-            ) : (
-              <><RefreshCw className="w-4 h-4" /> 修復を開始する</>
-            )}
-          </button>
-        )}
-      </div>
     </div>
   );
 }
