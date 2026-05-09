@@ -11,7 +11,7 @@ function doPost(e) {
     // シートが空の場合（行数が0）、ヘッダーを追加
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
-        "タイムスタンプ", "総合点", "仕事点", "天気", 
+        "タイムスタンプ", "総合点", "天気", 
         "通勤/外出", "行きの座席", "行きの駅", "行き遅延", 
         "帰りの座席", "帰りの駅", "帰り遅延", 
         "不快なこと", "日記", "睡眠データ"
@@ -19,12 +19,18 @@ function doPost(e) {
     }
 
     let sleepDataStr = "";
+    if (data.sleepImage) {
+      try {
+        sleepDataStr = analyzeSleepImage(data.sleepImage);
+      } catch (e) {
+        sleepDataStr = "解析エラー: " + e.message;
+      }
+    }
 
     // フォームから送られてきたデータを整形して配列にする
     const row = [
       data.date || new Date().toLocaleString("ja-JP", {timeZone: "Asia/Tokyo"}),
       data.overallScore || "",
-      data.workScore || "",
       data.weather || "",
       data.commuteType || "", // 例: "通勤あり", "外出あり", "外出なし"
       data.outboundSat || "",
@@ -46,6 +52,23 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
 }
+
+// GETリクエストを処理し、スプレッドシートの全データをJSONとして返す
+function doGet(e) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("Data") || ss.getSheets()[0];
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "success", data: values }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 
 // OPTIONSリクエストを処理し、CORSエラーを回避する
 function doOptions(e) {
@@ -151,3 +174,41 @@ function scheduleTodayReminder() {
   }
 }
 
+
+// ==========================================
+// 睡眠画像解析
+// ==========================================
+function analyzeSleepImage(base64Image) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!apiKey) throw new Error("API Key not found");
+  
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const payload = {
+    contents: [
+      {
+        parts: [
+          { text: "この睡眠データ画像から、総睡眠時間、覚醒、レム、コア、深いのそれぞれの時間（〇時間〇分）を抽出してください。見えない項目は不明としてください。" },
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: base64Image
+            }
+          }
+        ]
+      }
+    ]
+  };
+  const options = {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  const response = UrlFetchApp.fetch(endpoint, options);
+  const json = JSON.parse(response.getContentText());
+  if (json.candidates && json.candidates.length > 0) {
+    return json.candidates[0].content.parts[0].text.trim();
+  } else {
+    throw new Error(json.error ? json.error.message : response.getContentText());
+  }
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import { Send, CheckCircle, TrainFront, Briefcase, AlignLeft, CloudRain, Sun, Cloud, Snowflake, HelpCircle, MoreHorizontal, CloudLightning, Moon } from 'lucide-react';
+import { Send, CheckCircle, TrainFront, Briefcase, AlignLeft, CloudRain, Sun, Cloud, Snowflake, HelpCircle, MoreHorizontal, CloudLightning, Moon, Sparkles, Upload, Bot, FileText, Image as ImageIcon } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -15,7 +15,6 @@ type FormData = {
   inboundRainLevel: string;
   inboundWeatherOther: string;
   overallScore: number;
-  workScore: number;
   commuteType: 'commuted' | 'wentOut' | 'none';
   outboundSat: 'yes' | 'no' | 'none';
   outboundStation: string;
@@ -41,14 +40,37 @@ const getTodayString = () => {
   return `${year}-${month}-${day}`;
 };
 
-export default function App() {
+ transition-all outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:opacity-50 disabled:active:scale-100"
+        >
+          {isAnalyzing ? (
+            <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> 分析中...</>
+          ) : (
+            <><Sparkles className="w-5 h-5 drop-shadow-sm" /> 分析を開始する</>
+          )}
+        </button>
+      </div>
 
+      {analysisResult && (
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-indigo-500"></div>
+          <h3 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-purple-400"/> 分析結果
+          </h3>
+          <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-medium">
+            {analysisResult}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function App() {
 
   const { register, handleSubmit, watch, control, setValue } = useForm<FormData>({
     defaultValues: {
       date: getTodayString(),
       overallScore: 70,
-      workScore: 70,
       commuteType: 'commuted',
       outboundDelay: 'no',
       outboundDelayMins: '5',
@@ -83,6 +105,29 @@ export default function App() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [sleepImage, setSleepImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const base64 = (e.target?.result as string).split(',')[1];
+              setSleepImage(base64);
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      }
+    };
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, []);
 
   const onSubmit = async (data: FormData) => {
     if (!data.outboundWeather || !data.inboundWeather) {
@@ -105,7 +150,6 @@ export default function App() {
         date: data.date,
         weather: weatherStr,
         overallScore: data.overallScore,
-        workScore: data.workScore,
         commuteType: data.commuteType === 'commuted' ? '通勤あり' : data.commuteType === 'wentOut' ? '外出あり' : '外出なし',
         outboundSat: data.outboundSat === 'yes' ? 'はい' : data.outboundSat === 'no' ? 'いいえ' : '移動なし',
         outboundStation: data.outboundSat === 'yes' ? data.outboundStation : '',
@@ -114,7 +158,8 @@ export default function App() {
         inboundStation: data.inboundSat === 'yes' ? data.inboundStation : '',
         inboundDelay: data.inboundDelay === 'yes' ? (data.inboundDelayMins === 'その他' ? (data.inboundDelayOther || 'その他') : `${data.inboundDelayMins}分`) : 'なし',
         unpleasantEvents: data.unpleasantEvents,
-        diary: data.diary
+        diary: data.diary,
+        sleepImage: sleepImage
       };
 
       const url = import.meta.env.VITE_GAS_URL;
@@ -169,18 +214,18 @@ export default function App() {
     <div className="max-w-md mx-auto p-4 pb-24 space-y-8 animate-in fade-in duration-500">
       <header className="mb-2">
         <h1 className="text-3xl font-black tracking-tight bg-gradient-to-br from-indigo-400 to-purple-400 bg-clip-text text-transparent">Daily Sync</h1>
-        <div className="mt-2 flex items-center gap-2">
-          <input 
-            type="date" 
-            {...register('date')}
-            className="bg-transparent text-slate-300 text-sm font-medium border-b border-slate-700 focus:border-indigo-500 outline-none pb-1"
-          />
-          <span className="text-slate-400 text-sm">の記録</span>
-        </div>
       </header>
       
+      <div className="mt-2 flex items-center gap-2 mb-6">
+            <input 
+              type="date" 
+              {...register('date')}
+              className="bg-transparent text-slate-300 text-sm font-medium border-b border-slate-700 focus:border-indigo-500 outline-none pb-1"
+            />
+            <span className="text-slate-400 text-sm">の記録</span>
+          </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
         {/* Commute logic */}
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
@@ -488,25 +533,6 @@ export default function App() {
             <input type="range" min="0" max="100" step="5" {...register('overallScore')} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" />
             <div className="flex justify-between text-xs text-slate-500 font-medium mt-2"><span>0</span><span>50</span><span>100</span></div>
           </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-purple-400"/> 仕事・プライベート点
-              </h2>
-              <Controller
-                control={control}
-                name="workScore"
-                render={({ field }) => (
-                  <div className="bg-purple-500/10 px-3 py-1 rounded-lg border border-purple-500/20">
-                     <span className="text-2xl font-black text-purple-400">{field.value}</span>
-                  </div>
-                )}
-              />
-            </div>
-            <input type="range" min="0" max="100" step="5" {...register('workScore')} className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500" />
-            <div className="flex justify-between text-xs text-slate-500 font-medium mt-2"><span>0</span><span>50</span><span>100</span></div>
-          </div>
         </div>
 
         {/* Diary */}
@@ -520,6 +546,52 @@ export default function App() {
             className="w-full bg-slate-800 border border-slate-700 rounded-xl p-4 text-sm text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none resize-none h-32 placeholder:text-slate-600 font-medium leading-relaxed"
           ></textarea>
         </div>
+
+        {/* Sleep Image */}
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <h2 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+            <Moon className="w-4 h-4 text-yellow-400"/> 睡眠データ (スクリーンショット)
+          </h2>
+          <div className="relative group rounded-xl overflow-hidden bg-slate-800 border-2 border-dashed border-slate-700 hover:border-indigo-500 transition-colors flex items-center justify-center min-h-[120px]">
+            {sleepImage ? (
+              <>
+                <img src={`data:image/jpeg;base64,${sleepImage}`} alt="Sleep data" className="max-h-48 object-contain" />
+                <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button 
+                    type="button" 
+                    onClick={() => setSleepImage(null)}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium text-sm"
+                  >削除</button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center p-6 cursor-pointer" onClick={() => document.getElementById('sleepFileInput')?.click()}>
+                <div className="w-12 h-12 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-indigo-500/20 transition-colors">
+                  <ImageIcon className="w-6 h-6 text-slate-400 group-hover:text-indigo-400" />
+                </div>
+                <p className="text-sm font-medium text-slate-300">ここをタップして画像を選択するか<br/>コピーした画像をペーストしてください</p>
+                <input 
+                  type="file" 
+                  id="sleepFileInput" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (e) => {
+                        const base64 = (e.target?.result as string).split(',')[1];
+                        setSleepImage(base64);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }} 
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Submit */}
         <button 
           type="submit" 
@@ -533,7 +605,6 @@ export default function App() {
           )}
         </button>
       </form>
-
     </div>
   );
 }
